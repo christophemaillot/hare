@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::env::VarError;
 use std::path::Path;
 use std::time::SystemTime;
 use futures_lite::StreamExt;
@@ -70,7 +69,7 @@ impl HareHandler {
     ///
     /// This function will return an error if there is an issue with the RabbitMQ connection or script execution.
     pub async fn start(&self) -> Result<(), HareError> {
-        self.configure_logging();
+        self.configure_logging()?;
         self.rabbitmq_loop().await?;
         Ok(())
     }
@@ -103,7 +102,7 @@ impl HareHandler {
             }
         };
 
-        let result = dispatch.apply();
+        dispatch.apply()?;
         Ok(())
     }
 
@@ -166,16 +165,16 @@ impl HareHandler {
             }
         }
 
-        self.handle_message(header_map).await;
+        self.handle_message(header_map).await?;
 
         Ok(())
     }
 
     async fn handle_message(&self, headers: HashMap<String, String>) -> Result<(), HareError> {
 
-        if let Some(value) = headers.get("type") {
-            // check if value is a alphanumeric string
-            if value.chars().all(|c| c.is_alphanumeric()) {
+        if let Some(value) = headers.get(&self.handler_key) {
+            // check if value is an alphanumeric string
+            if self.is_valid_script_name(value) {
                 log::info!("Message type: {}", value);
 
                 // make the script path
@@ -210,5 +209,12 @@ impl HareHandler {
         }
 
         Ok(())
+    }
+
+    /// check if a string is a valid script name
+    /// a script name is a string that is alphanumeric and can contain '-' and '_'
+    ///
+    fn is_valid_script_name(&self, name: &str) -> bool {
+        name.chars().all(|c|  matches!(c, '_' | '-' | 'a'..='z' | 'A'..='Z' | '0'..='9'))
     }
 }
